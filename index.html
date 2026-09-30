@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Store Manager</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f4f6f9; padding: 12px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; }
+        
+        .header { background: #1b4332; color: white; padding: 15px; border-radius: 12px; margin-bottom: 12px; text-align: center; }
+        .lang-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+        select, input[type="number"], input[type="text"], input[type="date"] { padding: 8px 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; width: 100%; }
+        
+        /* Summary Grid */
+        .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+        .sum-card { background: white; padding: 8px 4px; border-radius: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .sum-card h4 { font-size: 10px; color: #718096; text-transform: uppercase; }
+        .sum-card p { font-size: 16px; font-weight: bold; margin-top: 2px; }
+        .sum-card.red p { color: #e63946; }
+        .sum-card.yellow p { color: #d4a373; }
+        .sum-card.green p { color: #2a9d8f; }
+        .sum-card.orange p { color: #e76f51; }
+
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 15px; }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px; color: #4a5568; }
+        .row { display: flex; gap: 8px; }
+        
+        button.btn-primary { width: 100%; padding: 12px; background-color: #2d6a4f; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; margin-top: 5px; }
+        button.btn-primary:hover { background-color: #1b4332; }
+        
+        .tabs { display: flex; gap: 4px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 4px; }
+        .tab-btn { flex: 1; padding: 8px 5px; background: #e2e8f0; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; white-space: nowrap; }
+        .tab-btn.active { background: #2d6a4f; color: white; }
+
+        .item-list { display: flex; flex-direction: column; gap: 8px; }
+        .item-card { background: white; padding: 12px; border-radius: 8px; border-left: 5px solid #ccc; box-shadow: 0 1px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .item-card.expired { border-left-color: #e63946; background-color: #fff5f5; }
+        .item-card.warning { border-left-color: #ffb703; background-color: #fffbeb; }
+        .item-card.good { border-left-color: #52b788; }
+        
+        .item-info h4 { font-size: 15px; color: #1a202c; }
+        .item-info p { font-size: 12px; color: #4a5568; margin-top: 2px; }
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; display: inline-block; margin-top: 4px; margin-right: 4px; }
+        .badge.expired { background: #e63946; }
+        .badge.warning { background: #d4a373; color: black; }
+        .badge.good { background: #52b788; }
+        .badge.low-stock { background: #e76f51; color: white; }
+        .badge.shelf { background: #4a5568; color: white; }
+        
+        .delete-btn { background: #e63946; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .loss-banner { background: #ffe3e3; color: #c92a2a; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="lang-bar">
+        <div style="width: 48%;">
+            <label id="lblLang">Language / භාෂාව</label>
+            <select id="langSelect" onchange="changeLanguage()">
+                <option value="si">සිංහල</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+        <div style="width: 48%;">
+            <label id="lblAlertDays">Alert Days Ahead</label>
+            <input type="number" id="alertDays" value="30" min="1" onchange="updateSettings()">
+        </div>
+    </div>
+
+    <div class="header">
+        <h2 id="txtTitle">📦 Smart Store Manager</h2>
+        <p id="txtSubTitle" style="font-size: 12px; opacity: 0.9;">කඩයේ බඩු සහ Expiry කළමනාකරු</p>
+    </div>
+
+    <div class="summary-grid">
+        <div class="sum-card green">
+            <h4 id="sumGood">Good</h4>
+            <p id="countGood">0</p>
+        </div>
+        <div class="sum-card yellow">
+            <h4 id="sumWarn">Expiring</h4>
+            <p id="countWarn">0</p>
+        </div>
+        <div class="sum-card red">
+            <h4 id="sumExp">Expired</h4>
+            <p id="countExp">0</p>
+        </div>
+        <div class="sum-card orange">
+            <h4 id="sumLow">Low Stock</h4>
+            <p id="countLow">0</p>
+        </div>
+    </div>
+
+    <div id="lossBanner" class="loss-banner" style="display:none;"></div>
+
+    <div class="card">
+        <div class="form-group">
+            <label id="lblItemName">Item Name</label>
+            <input type="text" id="itemName" placeholder="e.g. Anchor Milk Powder 400g">
+        </div>
+        <div class="row">
+            <div class="form-group" style="flex:1;">
+                <label id="lblQty">Quantity</label>
+                <input type="number" id="itemQty" placeholder="10">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label id="lblMinQty">Min Alert Qty</label>
+                <input type="number" id="itemMinQty" placeholder="5">
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group" style="flex:1;">
+                <label id="lblShelf">Rack / Shelf No.</label>
+                <input type="text" id="itemShelf" placeholder="e.g. Rack A-01">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label id="lblPrice">Price (Rs.)</label>
+                <input type="number" id="itemPrice" placeholder="Rs.">
+            </div>
+        </div>
+        <div class="form-group">
+            <label id="lblExpDate">Expiry Date</label>
+            <input type="date" id="expiryDate">
+        </div>
+        <button class="btn-primary" id="btnAdd" onclick="addItem()">Add Item</button>
+    </div>
+
+    <div class="form-group">
+        <input type="text" id="searchBar" placeholder="🔍 Search Item or Rack..." oninput="renderItems()">
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="tabAll" onclick="filterTab('all')">All</button>
+        <button class="tab-btn" id="tabLow" onclick="filterTab('low')">Low Stock</button>
+        <button class="tab-btn" id="tabWarn" onclick="filterTab('warning')">Expiring Soon</button>
+        <button class="tab-btn" id="tabExp" onclick="filterTab('expired')">Expired</button>
+    </div>
+
+    <div id="itemList" class="item-list"></div>
+</div>
+
+<script>
+    const dict = {
+        si: {
+            title: "📦 ස්මාර්ට් කඩයේ කළමනාකරු",
+            subTitle: "කඩයේ බඩු, රාක්ක සහ Expiry පාලනය",
+            lblLang: "භාෂාව",
+            lblAlertDays: "මතක් කරන දින ගණන",
+            sumGood: "හොඳ මට්ටමේ",
+            sumWarn: "ලඟදීම Expire",
+            sumExp: "Expire වී ඇත",
+            sumLow: "තොග අඩුයි",
+            lblItemName: "භාණ්ඩයේ නම",
+            lblQty: "ප්‍රමාණය",
+            lblMinQty: "අවම තොග සීමාව",
+            lblShelf: "රාක්ක / ෂෙල්ෆ් අංකය",
+            lblPrice: "ඒකක මිල (රු.)",
+            lblExpDate: "කල් ඉකුත් වන දිනය",
+            btnAdd: "තොගයට ඇතුළත් කරන්න",
+            search: "🔍 බඩුවක් හෝ රාක්ක අංකයක් සොයන්න...",
+            tabAll: "සියල්ල",
+            tabLow: "තොග අඩු ඒවා",
+            tabWarn: "ලඟදීම Expire",
+            tabExp: "Expire වී ඇත",
+            empty: "කිසිදු භාණ්ඩයක් සොයාගත නොහැක.",
+            daysLeft: "දින {d} ක් ඉතිරියි",
+            expiredTag: "කල් ඉකුත් වී ඇත!",
+            warnTag: "දින {d} කින් Expire වේ",
+            lowStockTag: "⚠️ තොග අඩුයි!",
+            shelfTag: "📍 රාක්කය: ",
+            delete: "මකන්න",
+            lossText: "⚠️ කල් ඉකුත් වූ බඩු නිසා සිදුවූ මුළු පාඩුව: රු. "
+        },
+        ta: {
+            title: "📦 ஸ்மார்ட் கடை மேலாளர்",
+            subTitle: "பொருட்கள், அலமாரிகள் மற்றும் காலாவதி கட்டுப்பாடு",
+            lblLang: "மொழி",
+            lblAlertDays: "எச்சரிக்கை நாட்கள்",
+            sumGood: "நல்ல நிலை",
+            sumWarn: "விரைவில் காலாவதி",
+            sumExp: "காலாவதியானது",
+            sumLow: "குறைந்த இருப்பு",
+            lblItemName: "பொருளின் பெயர்",
+            lblQty: "அளவு",
+            lblMinQty: "குறைந்தபட்ச வரம்பு",
+            lblShelf: "ரேக் / அலமாரி எண்",
+            lblPrice: "விலை (ரூ.)",
+            lblExpDate: "காலாவதி தேதி",
+            btnAdd: "சேர்க்கவும்",
+            search: "🔍 பொருள் அல்லது ரேக் எண் தேடுக...",
+            tabAll: "அனைத்தும்",
+            tabLow: "குறைந்த இருப்பு",
+            tabWarn: "விரைவில் காலாவதி",
+            tabExp: "காலாவதியானது",
+            empty: "பொருட்கள் எதுவும் இல்லை.",
+            daysLeft: "{d} நாட்கள் உள்ளன",
+            expiredTag: "காலாவதியானது!",
+            warnTag: "{d} நாட்களில் காலாவதியாகும்",
+            lowStockTag: "⚠️ இருப்பு குறைவு!",
+            shelfTag: "📍 ரேக்: ",
+            delete: "நீக்கு",
+            lossText: "⚠️ காலாவதியான பொருட்களின் மொத்த இழப்பு: ரூ. "
+        },
+        en: {
+            title: "📦 Smart Store Manager",
+            subTitle: "Inventory, Rack & Expiry Management",
+            lblLang: "Language",
+            lblAlertDays: "Alert Days Ahead",
+            sumGood: "Good Condition",
+            sumWarn: "Expiring Soon",
+            sumExp: "Expired",
+            sumLow: "Low Stock",
+            lblItemName: "Item Name",
+            lblQty: "Quantity",
+            lblMinQty: "Min Alert Qty",
+            lblShelf: "Rack / Shelf No.",
+            lblPrice: "Price per Unit (Rs.)",
+            lblExpDate: "Expiry Date",
+            btnAdd: "Add Item to Stock",
+            search: "🔍 Search Item or Rack...",
+            tabAll: "All",
+            tabLow: "Low Stock",
+            tabWarn: "Expiring Soon",
+            tabExp: "Expired",
+            empty: "No items found.",
+            daysLeft: "{d} days left",
+            expiredTag: "Expired!",
+            warnTag: "Expires in {d} days",
+            lowStockTag: "⚠️ Low Stock!",
+            shelfTag: "📍 Shelf: ",
+            delete: "Delete",
+            lossText: "⚠️ Total Loss from Expired Stock: Rs. "
+        }
+    };
+
+    let currentLang = localStorage.getItem('store_lang') || 'si';
+    let alertDaysVal = parseInt(localStorage.getItem('store_alert_days')) || 30;
+    let inventory = JSON.parse(localStorage.getItem('store_inventory_v3')) || [];
+    let activeFilter = 'all';
+
+    document.getElementById('langSelect').value = currentLang;
+    document.getElementById('alertDays').value = alertDaysVal;
+
+    function saveAll() {
+        localStorage.setItem('store_inventory_v3', JSON.stringify(inventory));
+        localStorage.setItem('store_lang', currentLang);
+        localStorage.setItem('store_alert_days', alertDaysVal);
+    }
+
+    function updateSettings() {
+        alertDaysVal = parseInt(document.getElementById('alertDays').value) || 30;
+        saveAll();
+        renderItems();
+    }
+
+    function changeLanguage() {
+        currentLang = document.getElementById('langSelect').value;
+        saveAll();
+        applyTranslations();
+        renderItems();
+    }
+
+    function applyTranslations() {
+        const t = dict[currentLang];
+        document.getElementById('txtTitle').innerText = t.title;
+        document.getElementById('txtSubTitle').innerText = t.subTitle;
+        document.getElementById('lblLang').innerText = t.lblLang;
+        document.getElementById('lblAlertDays').innerText = t.lblAlertDays;
+        document.getElementById('sumGood').innerText = t.sumGood;
+        document.getElementById('sumWarn').innerText = t.sumWarn;
+        document.getElementById('sumExp').innerText = t.sumExp;
+        document.getElementById('sumLow').innerText = t.sumLow;
+        document.getElementById('lblItemName').innerText = t.lblItemName;
+        document.getElementById('lblQty').innerText = t.lblQty;
+        document.getElementById('lblMinQty').innerText = t.lblMinQty;
+        document.getElementById('lblShelf').innerText = t.lblShelf;
+        document.getElementById('lblPrice').innerText = t.lblPrice;
+        document.getElementById('lblExpDate').innerText = t.lblExpDate;
+        document.getElementById('btnAdd').innerText = t.btnAdd;
+        document.getElementById('searchBar').placeholder = t.search;
+        document.getElementById('tabAll').innerText = t.tabAll;
+        document.getElementById('tabLow').innerText = t.tabLow;
+        document.getElementById('tabWarn').innerText = t.tabWarn;
+        document.getElementById('tabExp').innerText = t.tabExp;
+    }
+
+    function addItem() {
+        const name = document.getElementById('itemName').value;
+        const qty = document.getElementById('itemQty').value;
+        const minQty = document.getElementById('itemMinQty').value || 5;
+        const shelf = document.getElementById('itemShelf').value || '-';
+        const price = document.getElementById('itemPrice').value || 0;
+        const expDate = document.getElementById('expiryDate').value;
+
+        if (!name || !qty || !expDate) {
+            alert('Please fill required fields!');
+            return;
+        }
+
+        inventory.push({
+            id: Date.now(),
+            name: name,
+            qty: parseFloat(qty),
+            minQty: parseFloat(minQty),
+            shelf: shelf,
+            price: parseFloat(price),
+            expDate: expDate
+        });
+
+        saveAll();
+        renderItems();
+
+        document.getElementById('itemName').value = '';
+        document.getElementById('itemQty').value = '';
+        document.getElementById('itemMinQty').value = '';
+        document.getElementById('itemShelf').value = '';
+        document.getElementById('itemPrice').value = '';
+        document.getElementById('expiryDate').value = '';
+    }
+
+    function deleteItem(id) {
+        inventory = inventory.filter(item => item.id !== id);
+        saveAll();
+        renderItems();
+    }
+
+    function filterTab(type) {
+        activeFilter = type;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        if(type==='all') document.getElementById('tabAll').classList.add('active');
+        if(type==='low') document.getElementById('tabLow').classList.add('active');
+        if(type==='warning') document.getElementById('tabWarn').classList.add('active');
+        if(type==='expired') document.getElementById('tabExp').classList.add('active');
+        renderItems();
+    }
+
+    function renderItems() {
+        const t = dict[currentLang];
+        const listContainer = document.getElementById('itemList');
+        const searchQuery = document.getElementById('searchBar').value.toLowerCase();
+        listContainer.innerHTML = '';
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        let countGood = 0, countWarn = 0, countExp = 0, countLow = 0, totalLoss = 0;
+
+        const filteredList = inventory.filter(item => {
+            const exp = new Date(item.expDate);
+            exp.setHours(0,0,0,0);
+            const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+
+            let status = 'good';
+            if (diffDays < 0) {
+                status = 'expired';
+                countExp++;
+                totalLoss += (item.price * item.qty);
+            } else if (diffDays <= alertDaysVal) {
+                status = 'warning';
+                countWarn++;
+            } else {
+                countGood++;
+            }
+
+            const isLowStock = item.qty <= item.minQty;
+            if (isLowStock) {
+                countLow++;
+            }
+
+            item.currentStatus = status;
+            item.diffDays = diffDays;
+            item.isLowStock = isLowStock;
+
+            const matchesSearch = item.name.toLowerCase().includes(searchQuery) || item.shelf.toLowerCase().includes(searchQuery);
+            
+            let matchesTab = false;
+            if (activeFilter === 'all') matchesTab = true;
+            else if (activeFilter === 'low') matchesTab = isLowStock;
+            else if (activeFilter === status) matchesTab = true;
+
+            return matchesSearch && matchesTab;
+        });
+
+        // Update Dashboard Summary
+        document.getElementById('countGood').innerText = countGood;
+        document.getElementById('countWarn').innerText = countWarn;
+        document.getElementById('countExp').innerText = countExp;
+        document.getElementById('countLow').innerText = countLow;
+
+        const lossBanner = document.getElementById('lossBanner');
+        if (totalLoss > 0) {
+            lossBanner.style.display = 'block';
+            lossBanner.innerText = t.lossText + totalLoss.toLocaleString();
+        } else {
+            lossBanner.style.display = 'none';
+        }
+
+        if (filteredList.length === 0) {
+            listContainer.innerHTML = `<p style="text-align:center; color:#a0aec0; margin-top:15px;">${t.empty}</p>`;
+            return;
+        }
+
+        filteredList.forEach(item => {
+            let statusClass = item.currentStatus;
+            let statusText = t.daysLeft.replace('{d}', item.diffDays);
+            let badgeClass = item.currentStatus;
+
+            if (item.currentStatus === 'expired') {
+                statusText = t.expiredTag;
+            } else if (item.currentStatus === 'warning') {
+                statusText = t.warnTag.replace('{d}', item.diffDays);
+            }
+
+            const card = document.createElement('div');
+            card.className = `item-card ${statusClass}`;
+            card.innerHTML = `
+                <div class="item-info">
+                    <h4>${item.name}</h4>
+                    <p>${t.lblQty}: <strong>${item.qty}</strong> | ${t.lblPrice}: Rs. ${item.price}</p>
+                    <p style="font-size:11px; color:#718096;">Exp: ${item.expDate}</p>
+                    <div style="margin-top:4px;">
+                        <span class="badge ${badgeClass}">${statusText}</span>
+                        ${item.isLowStock ? `<span class="badge low-stock">${t.lowStockTag}</span>` : ''}
+                        ${item.shelf !== '-' ? `<span class="badge shelf">${t.shelfTag}${item.shelf}</span>` : ''}
+                    </div>
+                </div>
+                <button class="delete-btn" onclick="deleteItem(${item.id})">${t.delete}</button>
+            `;
+            listContainer.appendChild(card);
+        });
+    }
+
+    applyTranslations();
+    renderItems();
+</script>
+
+</body>
+</html>
