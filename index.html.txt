@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Store Manager POS Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --bg-light: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        .navbar-custom {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+        }
+
+        .card-stat {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+
+        .card-stat:hover {
+            transform: translateY(-3px);
+        }
+
+        .screen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .pin-input {
+            letter-spacing: 15px;
+            font-size: 28px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .license-banner {
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .thermal-receipt {
+            width: 300px;
+            background: #fff;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            border: 1px dashed #ccc;
+            margin: auto;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printableReceipt, #printableReceipt * {
+                visibility: visible;
+            }
+            #printableReceipt {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Lock / Expiry / Setup Screens -->
+    <div id="appLockOverlay" class="screen-overlay" style="display: none;">
+        <div class="auth-card text-center" id="lockCardContent">
+            <!-- Dynamic Content for Lock / Setup / Expiry -->
+        </div>
+    </div>
+
+    <!-- Main Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#" id="devLogoClick">
+                <i class="fas fa-store me-2"></i><span id="navStoreName">Smart Store POS</span>
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <span id="licenseBadge" class="badge bg-success license-banner">License Active</span>
+                <button class="btn btn-outline-light btn-sm" onclick="lockApp()"><i class="fas fa-lock"></i> Lock</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- App Content -->
+    <div class="container py-4">
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-4 nav-justified bg-white p-2 rounded-3 shadow-sm" id="mainTabs">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabPos"><i class="fas fa-cash-register me-2"></i>POS (විකුණුම්)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabStock"><i class="fas fa-boxes me-2"></i>තොග (Stock)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabReports"><i class="fas fa-chart-line me-2"></i>වාර්තා (Reports)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabSettings"><i class="fas fa-cog me-2"></i>සැකසුම් (Settings)</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- POS TAB -->
+            <div class="tab-pane fade show active" id="tabPos">
+                <div class="row g-3">
+                    <div class="col-md-7">
+                        <div class="card border-0 shadow-sm p-3">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-search me-2"></i>භාණ්ඩ සෙවීම</h5>
+                            <input type="text" id="posSearch" class="form-control form-control-lg mb-3" placeholder="භාණ්ඩයේ නම හෝ කේතය..." oninput="filterPosItems()">
+                            <div class="row g-2" id="posItemList" style="max-height: 480px; overflow-y: auto;">
+                                <!-- Items rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="card border-0 shadow-sm p-3">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-shopping-cart me-2"></i>වත්මන් බිල්පත (Cart)</h5>
+                            <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>භාණ්ඩය</th>
+                                            <th>තොග</th>
+                                            <th>මිල</th>
+                                            <th>එකතුව</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cartTableBody"></tbody>
+                                </table>
+                            </div>
+                            <hr>
+                            <div class="d-flex justify-content-between h4 fw-bold text-success">
+                                <span>මුළු එකතුව:</span>
+                                <span>Rs. <span id="cartTotal">0.00</span></span>
+                            </div>
+                            <div class="d-grid gap-2 mt-3">
+                                <button class="btn btn-success btn-lg fw-bold" onclick="checkout()"><i class="fas fa-print me-2"></i>බිල්පත නිකුත් කරන්න (Checkout)</button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="clearCart()"><i class="fas fa-trash me-1"></i>කැප් එක හිස් කරන්න</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STOCK TAB -->
+            <div class="tab-pane fade" id="tabStock">
+                <div class="card border-0 shadow-sm p-3 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold m-0"><i class="fas fa-box-open me-2"></i>තොග කළමනාකරණය</h5>
+                        <button class="btn btn-primary" onclick="showAddItemModal()"><i class="fas fa-plus me-1"></i>අලුත් භාණ්ඩයක් එකතු කරන්න</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>කේතය</th>
+                                    <th>භාණ්ඩයේ නම</th>
+                                    <th>ගැනුම් මිල</th>
+                                    <th>විකුණුම් මිල</th>
+                                    <th>ප්‍රමාණය</th>
+                                    <th>තත්ත්වය</th>
+                                    <th>ක්‍රියාමාර්ග</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REPORTS TAB -->
+            <div class="tab-pane fade" id="tabReports">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card card-stat bg-primary text-white p-3">
+                            <h6>අද දින අලෙවිය</h6>
+                            <h3 class="fw-bold m-0">Rs. <span id="repTodaySales">0.00</span></h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card card-stat bg-success text-white p-3">
+                            <h6>අද දින ශුද්ධ ලාභය</h6>
+                            <h3 class="fw-bold m-0">Rs. <span id="repTodayProfit">0.00</span></h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card card-stat bg-warning text-dark p-3">
+                            <h6>අඩු තොග අයිතම (Low Stock)</h6>
+                            <h3 class="fw-bold m-0"><span id="repLowStockCount">0</span> Items</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm p-3">
+                    <h5 class="fw-bold mb-3"><i class="fas fa-history me-2"></i>විකුණුම් ඉතිහාසය</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>බිල් අංකය</th>
+                                    <th>වේලාව</th>
+                                    <th>මුළු මුදල</th>
+                                    <th>ලාභය</th>
+                                    <th>ක්‍රියාමාර්ග</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesHistoryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS TAB -->
+            <div class="tab-pane fade" id="tabSettings">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="card border-0 shadow-sm p-3">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-store me-2"></i>ආයතන විස්තර & PIN</h5>
+                            <form id="settingsForm" onsubmit="saveSettings(event)">
+                                <div class="mb-3">
+                                    <label class="form-label">ආයතනයේ/කඩයේ නම</label>
+                                    <input type="text" id="setStoreName" class="form-control" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">දුරකථන අංකය</label>
+                                    <input type="text" id="setStorePhone" class="form-control" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">ලිපිනය</label>
+                                    <input type="text" id="setStoreAddress" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" id="setUsername" class="form-control" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">නව PIN Lock එක (අංක 4ක්)</label>
+                                    <input type="password" id="setUserPin" class="form-control" maxlength="4" placeholder="වෙනස් කිරීමට පමණක් යොදන්න">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">වෙනස්කම් සුරකින්න</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card border-0 shadow-sm p-3 mb-3">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-key me-2"></i>ලයිසන්ස් විස්තර (License Info)</h5>
+                            <p class="m-1"><strong>Device Key:</strong> <span id="dispDeviceKey" class="badge bg-secondary">...</span></p>
+                            <p class="m-1"><strong>තත්ත්වය:</strong> <span id="dispLicenseStatus" class="badge bg-success">Active</span></p>
+                            <p class="m-1"><strong>කල්ඉක්මවන දිනය:</strong> <span id="dispExpiryDate">...</span></p>
+                            <div class="mt-3">
+                                <button class="btn btn-outline-primary btn-sm" onclick="promptRenewalKey()"><i class="fas fa-sync me-1"></i>නව ලයිසන්ස් කේතයක් ඇතුළත් කරන්න</button>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm p-3">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-database me-2"></i>දත්ත සුරැකුම (Backup & Restore)</h5>
+                            <button class="btn btn-success mb-2" onclick="exportData()"><i class="fas fa-download me-2"></i>Backup ලබාගන්න (JSON Download)</button>
+                            <input type="file" id="importFile" class="d-none" onchange="importData(event)">
+                            <button class="btn btn-outline-secondary" onclick="document.getElementById('importFile').click()"><i class="fas fa-upload me-2"></i>Backup Restore කරන්න</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add/Edit Item Modal -->
+    <div class="modal fade" id="itemModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemModalTitle">අලුත් භාණ්ඩයක් එකතු කරන්න</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="itemForm">
+                        <input type="hidden" id="itemId">
+                        <div class="mb-3">
+                            <label class="form-label">භාණ්ඩයේ කේතය (Barcode/Code)</label>
+                            <input type="text" id="itemCode" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">භාණ්ඩයේ නම</label>
+                            <input type="text" id="itemName" class="form-control" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">ගැනුම් මිල (Cost)</label>
+                                <input type="number" step="0.01" id="itemCost" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">විකුණුම් මිල (Price)</label>
+                                <input type="number" step="0.01" id="itemPrice" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">තොග ප්‍රමාණය (Qty)</label>
+                                <input type="number" id="itemQty" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">අඩු තොග සීමාව (Low Limit)</label>
+                                <input type="number" id="itemMin" class="form-control" value="5" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">සුරකින්න</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Printable Receipt Modal -->
+    <div class="modal fade" id="receiptModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">බිල්පත (Receipt)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div id="printableReceipt" class="thermal-receipt">
+                        <!-- Thermal receipt HTML rendered here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">වසා දමන්න</button>
+                    <button class="btn btn-success" onclick="shareWhatsApp()"><i class="fab fa-whatsapp me-1"></i>WhatsApp යවන්න</button>
+                    <button class="btn btn-primary" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // MASTER SYSTEM CONFIG & CONTROLLER
+        const MASTER_DEV_PIN = "9988"; // Developer Admin Override PIN
+        
+        // Initial LocalStorage Keys
+        let config = JSON.parse(localStorage.getItem('sys_config')) || {
+            initialized: false,
+            storeName: 'My Smart Shop',
+            storePhone: '0712345678',
+            storeAddress: 'Colombo, Sri Lanka',
+            username: '',
+            pin: '',
+            deviceKey: generateDeviceKey(),
+            licenseStatus: 'ACTIVE', // ACTIVE, EXPIRED, SUSPENDED
+            expiryDate: getFutureDate(30), // Default 30 Days Trial / Initial License
+            developerWhatsApp: '94707602670' // Updated Developer WhatsApp Number
+        };
+
+        let items = JSON.parse(localStorage.getItem('sys_items')) || [
+            { id: 1, code: '101', name: 'සීනි 1kg', cost: 240, price: 280, qty: 50, min: 10 },
+            { id: 2, code: '102', name: 'පරිප්පු 1kg', cost: 290, price: 340, qty: 40, min: 10 }
+        ];
+
+        let sales = JSON.parse(localStorage.getItem('sys_sales')) || [];
+        let cart = [];
+
+        // Save State
+        function saveState() {
+            localStorage.setItem('sys_config', JSON.stringify(config));
+            localStorage.setItem('sys_items', JSON.stringify(items));
+            localStorage.setItem('sys_sales', JSON.stringify(sales));
+        }
+
+        function generateDeviceKey() {
+            return 'DEV-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function getFutureDate(days) {
+            let d = new Date();
+            d.setDate(d.getDate() + days);
+            return d.toISOString().split('T')[0];
+        }
+
+        // Initialize App Checks
+        window.onload = function() {
+            checkLicenseAndAuth();
+            renderAll();
+        };
+
+        function checkLicenseAndAuth() {
+            const overlay = document.getElementById('appLockOverlay');
+            const lockCard = document.getElementById('lockCardContent');
+
+            // 1. Check if first time setup required
+            if (!config.initialized) {
+                overlay.style.display = 'flex';
+                lockCard.innerHTML = `
+                    <h4 class="fw-bold text-primary mb-3"><i class="fas fa-magic me-2"></i>ඇප් එක සකස් කිරීම (Setup)</h4>
+                    <p class="text-muted small mb-3">ඔබගේ වෙළඳසැල සඳහා මුලින්ම Username සහ PIN Lock එකක් සාදාගන්න.</p>
+                    <form onsubmit="completeSetup(event)">
+                        <div class="mb-2 text-start">
+                            <label class="form-label small fw-bold">කඩයේ/ආයතනයේ නම</label>
+                            <input type="text" id="setupStore" class="form-control" required placeholder="Ex: Perera Store">
+                        </div>
+                        <div class="mb-2 text-start">
+                            <label class="form-label small fw-bold">Username (පරිශීලක නමය)</label>
+                            <input type="text" id="setupUser" class="form-control" required placeholder="Ex: admin">
+                        </div>
+                        <div class="mb-3 text-start">
+                            <label class="form-label small fw-bold">PIN Lock (අංක 4ක රහස් අංකය)</label>
+                            <input type="password" id="setupPin" class="form-control pin-input" maxlength="4" required placeholder="****">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">ආරම්භ කරන්න</button>
+                    </form>
+                `;
+                return;
+            }
+
+            // 2. Check Expiry / Suspension (Developer Control)
+            let today = new Date().toISOString().split('T')[0];
+            if (config.licenseStatus === 'SUSPENDED' || (config.expiryDate && config.expiryDate < today)) {
+                overlay.style.display = 'flex';
+                lockCard.innerHTML = `
+                    <div class="text-danger mb-3"><i class="fas fa-exclamation-triangle fa-3x"></i></div>
+                    <h4 class="fw-bold text-danger">ලයිසන්ස් කාලය අවසන් වී ඇත!</h4>
+                    <p class="text-muted small">ඔබගේ ඇප් එකෙහි සේවා කාලය අවසන් වී ඇත හෝ අත්හිටුවා ඇත. සේවාව නැවත සක්‍රිය කර ගැනීමට මෘදුකාංග සපයන්නා (Developer) අමතන්න.</p>
+                    <div class="bg-light p-2 rounded mb-3">
+                        <small>Device Key: <strong>${config.deviceKey}</strong></small>
+                    </div>
+                    <a href="https://wa.me/${config.developerWhatsApp}?text=Hello! I want to renew license for Device Key: ${config.deviceKey}" class="btn btn-success w-100 fw-bold mb-2" target="_blank"><i class="fab fa-whatsapp me-2"></i>Developer ඇමතුම් (WhatsApp)</a>
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="showMasterAdminLogin()">Developer Portal (Vendor Only)</button>
+                `;
+                return;
+            }
+
+            // 3. Normal PIN Auth Prompt if locked
+            if (sessionStorage.getItem('sys_unlocked') !== 'true') {
+                overlay.style.display = 'flex';
+                lockCard.innerHTML = `
+                    <div class="text-primary mb-3"><i class="fas fa-user-lock fa-3x"></i></div>
+                    <h4 class="fw-bold mb-1">${config.storeName}</h4>
+                    <p class="text-muted small mb-3">ආයුබෝවන් <strong>${config.username}</strong>, ඇප් එකට පිවිසීමට PIN අංකය යොදන්න.</p>
+                    <form onsubmit="unlockApp(event)">
+                        <input type="password" id="unlockPinInput" class="form-control pin-input mb-3" maxlength="4" required autofocus placeholder="****">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Unlock කරන්න</button>
+                    </form>
+                `;
+                return;
+            }
+
+            // Unlocked and Valid
+            overlay.style.display = 'none';
+        }
+
+        function completeSetup(e) {
+            e.preventDefault();
+            config.storeName = document.getElementById('setupStore').value;
+            config.username = document.getElementById('setupUser').value;
+            config.pin = document.getElementById('setupPin').value;
+            config.initialized = true;
+            saveState();
+            sessionStorage.setItem('sys_unlocked', 'true');
+            checkLicenseAndAuth();
+            renderAll();
+        }
+
+        function unlockApp(e) {
+            e.preventDefault();
+            let pinVal = document.getElementById('unlockPinInput').value;
+            if (pinVal === config.pin || pinVal === MASTER_DEV_PIN) {
+                sessionStorage.setItem('sys_unlocked', 'true');
+                checkLicenseAndAuth();
+            } else {
+                alert('වැරදි PIN අංකයකි!');
+            }
+        }
+
+        function lockApp() {
+            sessionStorage.removeItem('sys_unlocked');
+            checkLicenseAndAuth();
+        }
+
+        // Developer Portal for Lock/Unlock & Extending Expiry
+        function showMasterAdminLogin() {
+            let devKey = prompt("Developer Secret PIN එක ඇතුළත් කරන්න:");
+            if (devKey === MASTER_DEV_PIN) {
+                let action = prompt("තෝරන්න:\n1. Days එකතු කරන්න (උදා: 30)\n2. License Active කරන්න\n3. Block / Suspend කරන්න");
+                if (action === "1") {
+                    let d = parseInt(prompt("එකතු කළ යුතු දින ගණන:", "30"));
+                    if (d) {
+                        config.expiryDate = getFutureDate(d);
+                        config.licenseStatus = 'ACTIVE';
+                        saveState();
+                        alert('ලයිසන්ස් කාලය තවත් දින ' + d + ' කින් දීර්ඝ කරන ලදී!');
+                        location.reload();
+                    }
+                } else if (action === "2") {
+                    config.licenseStatus = 'ACTIVE';
+                    config.expiryDate = getFutureDate(365);
+                    saveState();
+                    alert('ලයිසන්ස් සක්‍රිය කරන ලදී!');
+                    location.reload();
+                } else if (action === "3") {
+                    config.licenseStatus = 'SUSPENDED';
+                    saveState();
+                    alert('ලයිසන්ස් අත්හිටුවන ලදී!');
+                    location.reload();
+                }
+            } else {
+                alert('අවසර නැත!');
+            }
+        }
+
+        // Render Functions
+        function renderAll() {
+            document.getElementById('navStoreName').innerText = config.storeName;
+            document.getElementById('dispDeviceKey').innerText = config.deviceKey;
+            document.getElementById('dispLicenseStatus').innerText = config.licenseStatus;
+            document.getElementById('dispExpiryDate').innerText = config.expiryDate || 'N/A';
+            document.getElementById('setStoreName').value = config.storeName;
+            document.getElementById('setStorePhone').value = config.storePhone;
+            document.getElementById('setStoreAddress').value = config.storeAddress;
+            document.getElementById('setUsername').value = config.username;
+
+            renderPosItems();
+            renderCart();
+            renderStock();
+            renderReports();
+        }
+
+        function renderPosItems() {
+            let list = document.getElementById('posItemList');
+            list.innerHTML = '';
+            items.forEach(it => {
+                list.innerHTML += `
+                    <div class="col-6 col-md-4">
+                        <div class="card p-2 text-center border-0 shadow-sm h-100" style="cursor:pointer;" onclick="addToCart(${it.id})">
+                            <div class="fw-bold text-dark mb-1">${it.name}</div>
+                            <small class="text-muted">තොග: ${it.qty}</small>
+                            <div class="text-success fw-bold mt-1">Rs. ${it.price.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function filterPosItems() {
+            let query = document.getElementById('posSearch').value.toLowerCase();
+            let filtered = items.filter(i => i.name.toLowerCase().includes(query) || i.code.toLowerCase().includes(query));
+            let list = document.getElementById('posItemList');
+            list.innerHTML = '';
+            filtered.forEach(it => {
+                list.innerHTML += `
+                    <div class="col-6 col-md-4">
+                        <div class="card p-2 text-center border-0 shadow-sm h-100" style="cursor:pointer;" onclick="addToCart(${it.id})">
+                            <div class="fw-bold text-dark mb-1">${it.name}</div>
+                            <small class="text-muted">තොග: ${it.qty}</small>
+                            <div class="text-success fw-bold mt-1">Rs. ${it.price.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function addToCart(id) {
+            let item = items.find(i => i.id === id);
+            if (!item || item.qty <= 0) {
+                alert('මෙම භාණ්ඩය තොගයේ නොමැත!');
+                return;
+            }
+            let cartItem = cart.find(c => c.id === id);
+            if (cartItem) {
+                if (cartItem.qty < item.qty) cartItem.qty++;
+            } else {
+                cart.push({ id: item.id, name: item.name, price: item.price, cost: item.cost, qty: 1, maxQty: item.qty });
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            let body = document.getElementById('cartTableBody');
+            body.innerHTML = '';
+            let total = 0;
+            cart.forEach((c, idx) => {
+                let sub = c.price * c.qty;
+                total += sub;
+                body.innerHTML += `
+                    <tr>
+                        <td><small>${c.name}</small></td>
+                        <td>
+                            <input type="number" value="${c.qty}" min="1" max="${c.maxQty}" class="form-control form-control-sm" style="width: 60px;" onchange="updateCartQty(${idx}, this.value)">
+                        </td>
+                        <td><small>${c.price}</small></td>
+                        <td><small>${sub.toFixed(2)}</small></td>
+                        <td><button class="btn btn-sm text-danger" onclick="removeCart(${idx})">&times;</button></td>
+                    </tr>
+                `;
+            });
+            document.getElementById('cartTotal').innerText = total.toFixed(2);
+        }
+
+        function updateCartQty(idx, val) {
+            cart[idx].qty = parseInt(val) || 1;
+            renderCart();
+        }
+
+        function removeCart(idx) {
+            cart.splice(idx, 1);
+            renderCart();
+        }
+
+        function clearCart() {
+            cart = [];
+            renderCart();
+        }
+
+        function checkout() {
+            if (cart.length === 0) {
+                alert('බිල්පත හිස්ය!');
+                return;
+            }
+
+            let totalAmt = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+            let totalCost = cart.reduce((sum, i) => sum + (i.cost * i.qty), 0);
+            let profit = totalAmt - totalCost;
+
+            // Update item quantities
+            cart.forEach(c => {
+                let stockItem = items.find(i => i.id === c.id);
+                if (stockItem) stockItem.qty -= c.qty;
+            });
+
+            let saleRecord = {
+                id: 'INV-' + Date.now().toString().substring(6),
+                time: new Date().toLocaleString(),
+                items: [...cart],
+                total: totalAmt,
+                profit: profit
+            };
+
+            sales.unshift(saleRecord);
+            saveState();
+
+            // Print Receipt Modal
+            renderThermalReceipt(saleRecord);
+            let modal = new bootstrap.Modal(document.getElementById('receiptModal'));
+            modal.show();
+
+            cart = [];
+            renderAll();
+        }
+
+        function renderThermalReceipt(sale) {
+            let html = `
+                <h5 class="fw-bold mb-1">${config.storeName}</h5>
+                <p class="mb-1">${config.storeAddress}</p>
+                <p class="mb-2">Tel: ${config.storePhone}</p>
+                <hr style="border-top: 1px dashed #000;">
+                <div class="d-flex justify-content-between"><small>Invoice: ${sale.id}</small><small>${sale.time}</small></div>
+                <hr style="border-top: 1px dashed #000;">
+            `;
+            sale.items.forEach(i => {
+                html += `<div class="d-flex justify-content-between"><span>${i.name} x${i.qty}</span><span>${(i.price*i.qty).toFixed(2)}</span></div>`;
+            });
+            html += `
+                <hr style="border-top: 1px dashed #000;">
+                <div class="d-flex justify-content-between fw-bold h6"><span>TOTAL:</span><span>Rs. ${sale.total.toFixed(2)}</span></div>
+                <hr style="border-top: 1px dashed #000;">
+                <p class="mt-2 text-center">ස්තූතියි! නැවත පැමිණෙන්න!</p>
+            `;
+            document.getElementById('printableReceipt').innerHTML = html;
+        }
+
+        function shareWhatsApp() {
+            alert('WhatsApp Invoice Sharing Activated!');
+        }
+
+        // Stock Management
+        function renderStock() {
+            let body = document.getElementById('stockTableBody');
+            body.innerHTML = '';
+            items.forEach(it => {
+                let lowClass = it.qty <= it.min ? 'bg-danger text-white' : 'bg-success text-white';
+                let status = it.qty <= it.min ? 'Low Stock' : 'In Stock';
+                body.innerHTML += `
+                    <tr>
+                        <td>${it.code}</td>
+                        <td class="fw-bold">${it.name}</td>
+                        <td>Rs. ${it.cost.toFixed(2)}</td>
+                        <td>Rs. ${it.price.toFixed(2)}</td>
+                        <td>${it.qty}</td>
+                        <td><span class="badge ${lowClass}">${status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editItem(${it.id})"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${it.id})"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function showAddItemModal() {
+            document.getElementById('itemForm').reset();
+            document.getElementById('itemId').value = '';
+            document.getElementById('itemModalTitle').innerText = 'අලුත් භාණ්ඩයක් එකතු කරන්න';
+            let modal = new bootstrap.Modal(document.getElementById('itemModal'));
+            modal.show();
+        }
+
+        document.getElementById('itemForm').onsubmit = function(e) {
+            e.preventDefault();
+            let id = document.getElementById('itemId').value;
+            let newItem = {
+                id: id ? parseInt(id) : Date.now(),
+                code: document.getElementById('itemCode').value,
+                name: document.getElementById('itemName').value,
+                cost: parseFloat(document.getElementById('itemCost').value),
+                price: parseFloat(document.getElementById('itemPrice').value),
+                qty: parseInt(document.getElementById('itemQty').value),
+                min: parseInt(document.getElementById('itemMin').value)
+            };
+
+            if (id) {
+                let idx = items.findIndex(i => i.id === parseInt(id));
+                items[idx] = newItem;
+            } else {
+                items.push(newItem);
+            }
+
+            saveState();
+            bootstrap.Modal.getInstance(document.getElementById('itemModal')).hide();
+            renderAll();
+        };
+
+        function editItem(id) {
+            let it = items.find(i => i.id === id);
+            document.getElementById('itemId').value = it.id;
+            document.getElementById('itemCode').value = it.code;
+            document.getElementById('itemName').value = it.name;
+            document.getElementById('itemCost').value = it.cost;
+            document.getElementById('itemPrice').value = it.price;
+            document.getElementById('itemQty').value = it.qty;
+            document.getElementById('itemMin').value = it.min;
+            document.getElementById('itemModalTitle').innerText = 'භාණ්ඩ විස්තර වෙනස් කරන්න';
+            let modal = new bootstrap.Modal(document.getElementById('itemModal'));
+            modal.show();
+        }
+
+        function deleteItem(id) {
+            if (confirm('මෙම භාණ්ඩය ඉවත් කිරීමට තහවුරු කරන්නද?')) {
+                items = items.filter(i => i.id !== id);
+                saveState();
+                renderAll();
+            }
+        }
+
+        // Reports
+        function renderReports() {
+            let today = new Date().toLocaleDateString();
+            let todaySales = sales.filter(s => new Date(s.time).toLocaleDateString() === today);
+            
+            let totSales = sales.reduce((sum, s) => sum + s.total, 0);
+            let totProfit = sales.reduce((sum, s) => sum + s.profit, 0);
+            let lowCount = items.filter(i => i.qty <= i.min).length;
+
+            document.getElementById('repTodaySales').innerText = totSales.toFixed(2);
+            document.getElementById('repTodayProfit').innerText = totProfit.toFixed(2);
+            document.getElementById('repLowStockCount').innerText = lowCount;
+
+            let body = document.getElementById('salesHistoryBody');
+            body.innerHTML = '';
+            sales.forEach(s => {
+                body.innerHTML += `
+                    <tr>
+                        <td><strong>${s.id}</strong></td>
+                        <td>${s.time}</td>
+                        <td class="text-success fw-bold">Rs. ${s.total.toFixed(2)}</td>
+                        <td class="text-primary fw-bold">Rs. ${s.profit.toFixed(2)}</td>
+                        <td><button class="btn btn-sm btn-outline-info" onclick='renderThermalReceipt(${JSON.stringify(s)}); new bootstrap.Modal(document.getElementById("receiptModal")).show();'><i class="fas fa-receipt"></i> බිල</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveSettings(e) {
+            e.preventDefault();
+            config.storeName = document.getElementById('setStoreName').value;
+            config.storePhone = document.getElementById('setStorePhone').value;
+            config.storeAddress = document.getElementById('setStoreAddress').value;
+            config.username = document.getElementById('setUsername').value;
+            let p = document.getElementById('setUserPin').value;
+            if (p && p.length === 4) config.pin = p;
+
+            saveState();
+            alert('සැකසුම් සාර්ථකව සුරකින ලදී!');
+            renderAll();
+        }
+
+        function promptRenewalKey() {
+            let key = prompt('Developer විසින් ලබාදුන් Renew License Code එක ඇතුළත් කරන්න:');
+            if (key) {
+                config.expiryDate = getFutureDate(30);
+                config.licenseStatus = 'ACTIVE';
+                saveState();
+                alert('ලයිසන්ස් සාර්ථකව සක්‍රිය විය!');
+                renderAll();
+            }
+        }
+
+        function exportData() {
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ config, items, sales }));
+            let dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `POS_Backup_${new Date().toISOString().split('T')[0]}.json`);
+            dl.click();
+        }
+
+        function importData(e) {
+            let file = e.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    let d = JSON.parse(evt.target.result);
+                    if (d.items && d.sales) {
+                        items = d.items;
+                        sales = d.sales;
+                        saveState();
+                        alert('Backup සාර්ථකව Restore විය!');
+                        renderAll();
+                    }
+                } catch(err) {
+                    alert('වැරදි Backup ෆයිල් එකකි!');
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
